@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Pickle Chatbot</title>
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <!-- Main CSS -->
+  <link rel="stylesheet" href="style.css">
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <!-- Marked JS for Markdown -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+  <div id="main-container">
+    <!-- Sidebar -->
+    <div id="sidebar">
+      <div id="sidebar-header">
+        <h2>Chat History</h2>
+        <div class="header-buttons">
+          <button id="delete-all-btn" title="Delete All Chats">
+            <i class="fas fa-trash-alt"></i>
+          </button>
+          <button id="new-chat-btn" title="New Chat">
+            <i class="fas fa-plus"></i>
+            <span>New Chat</span>
+          </button>
+        </div>
+      </div>
+      <div id="conversations-list"></div>
+    </div>
+
+    <!-- Main Chat Container -->
+    <div id="chat-container">
+      <div id="chat-display"></div>
+
+      <!-- Input container for typing messages -->
+      <div id="input-container">
+        <textarea id="chat-input" placeholder="Type your message..." rows="1"></textarea>
+        <button id="voice-btn" title="Voice Input">
+          <i class="fas fa-microphone"></i>
+        </button>
+        <button id="send-button">Send</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Phone simulator (call UI) -->
+  <div class="phone-simulator">
+    <div class="phone-status">On call with Pickle</div>
+    <div class="phone-timer">00:00</div>
+    <button class="end-call-btn" title="End Call">
+      <i class="fas fa-phone-slash"></i>
+    </button>
+  </div>
+
+  <!-- Main JS -->
+  <script src="chat.js"></script>
+</body>
+</html>
