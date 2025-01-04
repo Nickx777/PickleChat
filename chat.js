@@ -1,11 +1,16 @@
 class ChatApp {
     constructor() {
+        // text-based conversations
         this.conversations = JSON.parse(localStorage.getItem('conversations')) || [];
         this.currentConversationId = null;
+
+        // phone call tracking
         this.isInCallMode = false;
         this.callTimer = null;
+        this.callHistory = [];
+        this.currentCall = [];
 
-        // DOM elements
+        // DOM
         this.chatInput = document.getElementById('chat-input');
         this.sendButton = document.getElementById('send-button');
         this.newChatBtn = document.getElementById('new-chat-btn');
@@ -17,7 +22,7 @@ class ChatApp {
         this.endCallBtn = document.querySelector('.end-call-btn');
         this.phoneTimer = document.querySelector('.phone-timer');
 
-        // For Markdown
+        // Marked config
         marked.setOptions({
             breaks: true,
             gfm: true,
@@ -32,200 +37,391 @@ class ChatApp {
             this.recognition.interimResults = false;
             this.recognition.lang = 'en-US';
 
-            this.recognition.onresult = (event) => {
-                const transcript = event.results[0][0].transcript;
-                if (this.isInCallMode) {
+            this.recognition.onresult = (evt) => {
+                const transcript = evt.results[0][0].transcript;
+                if(this.isInCallMode){
+                    // phone call logic
                     this.processVoiceCall(transcript);
                 } else {
+                    // normal text
                     this.chatInput.value = transcript;
                     this.handleSendMessage();
                 }
             };
-
-            this.recognition.onend = () => {
-                if (this.isInCallMode) {
+            this.recognition.onend=()=>{
+                if(this.isInCallMode){
                     this.recognition.start();
-                } else {
+                } else{
                     this.voiceBtn.classList.remove('recording');
                 }
             };
-
-            this.recognition.onerror = (event) => {
-                console.error('Speech recognition error:', event.error);
+            this.recognition.onerror=(err)=>{
+                console.error('SpeechRec error:',err.error);
                 this.voiceBtn.classList.remove('recording');
             };
 
-            this.voiceBtn.addEventListener('click', () => this.toggleVoiceInput());
-            this.endCallBtn.addEventListener('click', () => this.endVoiceCall());
+            this.voiceBtn.addEventListener('click', ()=>this.toggleCall());
+            this.endCallBtn.addEventListener('click', ()=>this.endVoiceCall());
         } else {
-            this.voiceBtn.style.display = 'none';
-            console.warn('Speech recognition not supported');
+            this.voiceBtn.style.display='none';
+            console.warn('No speech recognition supported');
         }
 
-        // Speech Synthesis
-        this.synth = window.speechSynthesis;
-        this.speaking = false;
+        // TTS
+        this.synth=window.speechSynthesis;
+        this.speaking=false;
 
-        // Listeners
-        this.chatInput.addEventListener('input', () => this.autoResizeInput());
-        this.sendButton.addEventListener('click', () => this.handleSendMessage());
-        this.chatInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
+        // events
+        this.chatInput.addEventListener('input', ()=>this.autoResizeInput());
+        this.sendButton.addEventListener('click', ()=>this.handleSendMessage());
+        this.chatInput.addEventListener('keypress',(e)=>{
+            if(e.key==='Enter' && !e.shiftKey){
                 e.preventDefault();
                 this.handleSendMessage();
             }
         });
-        this.newChatBtn.addEventListener('click', () => this.createNewConversation());
-        this.deleteAllBtn.addEventListener('click', () => this.deleteAllChats());
+        this.newChatBtn.addEventListener('click',()=>this.createNewConversation());
+        this.deleteAllBtn.addEventListener('click',()=>this.deleteAllChats());
 
-        // Init
+        // init
         this.initializeApp();
     }
 
-    // Start/Stop voice call
-    toggleVoiceInput() {
-        if (this.voiceBtn.classList.contains('recording')) {
+    // =====================
+    // VOICE CALL
+    // =====================
+    toggleCall(){
+        if(this.voiceBtn.classList.contains('recording')){
             this.endVoiceCall();
-        } else {
+        } else{
             this.startVoiceCall();
         }
     }
-    startVoiceCall() {
-        this.isInCallMode = true;
+    startVoiceCall(){
+        this.isInCallMode=true;
+        this.currentCall=[];
+
         this.recognition.start();
         this.voiceBtn.classList.add('recording');
         this.phoneSimulator.classList.add('active');
-        
-        let seconds = 0;
-        this.callTimer = setInterval(() => {
-            seconds++;
-            const minutes = Math.floor(seconds / 60);
-            const remainingSeconds = seconds % 60;
-            this.phoneTimer.textContent = 
-              `${String(minutes).padStart(2,'0')}:${String(remainingSeconds).padStart(2,'0')}`;
+
+        let secs=0;
+        this.callTimer=setInterval(()=>{
+            secs++;
+            const mm=Math.floor(secs/60);
+            const ss=secs%60;
+            this.phoneTimer.textContent=`${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;
         },1000);
     }
-    endVoiceCall() {
-        this.isInCallMode = false;
+    endVoiceCall(){
+        this.isInCallMode=false;
         this.recognition.stop();
         this.voiceBtn.classList.remove('recording');
         this.phoneSimulator.classList.remove('active');
-        if (this.speaking) {
+
+        if(this.speaking){
             this.synth.cancel();
-            this.speaking = false;
+            this.speaking=false;
         }
-        if (this.callTimer) {
+        if(this.callTimer){
             clearInterval(this.callTimer);
-            this.callTimer = null;
+            this.callTimer=null;
         }
-        const msg = document.createElement('div');
-        msg.className = 'message system';
-        msg.textContent = '*Voice chat ended*';
-        this.chatDisplay.appendChild(msg);
-        this.chatDisplay.scrollTop = this.chatDisplay.scrollHeight;
+
+        // system message
+        const sys=document.createElement('div');
+        sys.classList.add('message','system');
+        sys.textContent='*Voice chat ended*';
+        this.chatDisplay.appendChild(sys);
+
+        const index=this.callHistory.length;
+        this.callHistory.push(this.currentCall);
+
+        // show transcript
+        const showBtn=document.createElement('button');
+        showBtn.textContent='Show Transcript';
+        showBtn.className='transcript-toggle-btn';
+
+        const transcriptDiv=document.createElement('div');
+        transcriptDiv.className='transcript-container';
+
+        let lines='';
+        this.currentCall.forEach(pair=>{
+            lines+=`You: ${pair.user}\nPickle: ${pair.bot}\n\n`;
+        });
+        transcriptDiv.textContent=lines.trim();
+
+        let visible=false;
+        showBtn.onclick=()=>{
+            visible=!visible;
+            transcriptDiv.style.display=visible?'block':'none';
+            showBtn.textContent=visible?'Hide Transcript':'Show Transcript';
+        };
+
+        this.chatDisplay.appendChild(showBtn);
+        this.chatDisplay.appendChild(transcriptDiv);
+        this.chatDisplay.scrollTop=this.chatDisplay.scrollHeight;
     }
-
-    async processVoiceCall(transcript) {
-        try {
-            // Show user transcript in chat (but not saving it in conversation)
-            const userMsgDiv = document.createElement('div');
-            userMsgDiv.className = 'message user';
-            userMsgDiv.innerHTML = transcript;
-            this.chatDisplay.appendChild(userMsgDiv);
-
-            // Build minimal array for call mode
-            const msgs = [
-                { role: "system", content: "You are Pickle, a helpful phone assistant. Keep replies concise." },
-                { role: "user", content: transcript }
+    async processVoiceCall(userSpeech){
+        try{
+            const callMsgs=[
+                { role:'system', content:"You are Pickle, a phone assistant. Keep replies short and do not display them in the main chat." },
+                { role:'user', content:userSpeech }
             ];
-
-            const response = await fetch('https://api.deepseek.com/chat/completions', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': 'Bearer sk-ef6e72c13b734499a91f5847a258e4e3'
+            const resp=await fetch('https://api.deepseek.com/chat/completions',{
+                method:'POST',
+                headers:{
+                    'Content-Type':'application/json',
+                    'Authorization':'Bearer sk-ef6e72c13b734499a91f5847a258e4e3'
                 },
-                body: JSON.stringify({
-                    messages: msgs,
-                    model: "deepseek-chat"
+                body:JSON.stringify({
+                    messages:callMsgs,
+                    model:"deepseek-chat"
                 })
             });
+            const data=await resp.json();
+            const botLine=data.choices[0].message.content;
 
-            const data = await response.json();
-            const botReply = data.choices[0].message.content;
-
-            // Show bot reply (not saved to conversation)
-            const botMsgDiv = document.createElement('div');
-            botMsgDiv.className = 'message bot';
-            botMsgDiv.innerHTML = botReply;
-            this.chatDisplay.appendChild(botMsgDiv);
-            this.chatDisplay.scrollTop = this.chatDisplay.scrollHeight;
-
-            // Speak if still in call
-            if (this.isInCallMode) {
-                this.speakText(botReply);
+            this.currentCall.push({
+                user:userSpeech,
+                bot:botLine
+            });
+            if(this.isInCallMode){
+                this.speakText(botLine);
             }
-        } catch (error) {
-            console.error('Error:',error);
-            this.speakText('Sorry, I had an error. Please try again.');
+        } catch(e){
+            console.error('Voice call error:',e);
+            this.speakText('Error happened. Try again.');
         }
     }
-
-    speakText(text) {
-        if (this.isInCallMode) {
+    speakText(text){
+        if(this.isInCallMode){
             this.recognition.stop();
         }
-        const cleaned = text
-          .replace(/\*\*(.*?)\*\*/g, '$1')
-          .replace(/\[.*?\]/g, '')
-          .replace(/\(.*?\)/g, '')
-          .replace(/[\u{1F300}-\u{1F9FF}]|[\u{1F600}-\u{1F64F}]|[\u{1F680}-\u{1F6FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|[\u{1F900}-\u{1F9FF}]|[\u{1F1E0}-\u{1F1FF}]|[\u{1F191}-\u{1F251}]|[\u{1F004}]|[\u{1F0CF}]|[\u{1F170}-\u{1F171}]|[\u{1F17E}-\u{1F17F}]|[\u{1F18E}]|[\u{3030}]|[\u{2B50}]|[\u{2B55}]|[\u{2934}-\u{2935}]|[\u{2B05}-\u{2B07}]|[\u{2B1B}-\u{2B1C}]|[\u{3297}]|[\u{3299}]|[\u{303D}]|[\u{00A9}]|[\u{00AE}]|[\u{2122}]|[\u{23F3}]|[\u{24C2}]|[\u{23E9}-\u{23EF}]|[\u{25AA}-\u{25AB}]|[\u{25B6}]|[\u{25C0}]|[\u{25FB}-\u{25FE}]|[\u{2600}-\u{2604}]|[\u{2614}-\u{2615}]|[\u{2648}-\u{2653}]|[\u{0023}-\u{0039}]\u{20E3}/gu,
-          ''
-        ).trim();
-        if (this.speaking) {
+        const cleaned=text
+          .replace(/\*\*(.*?)\*\*/g,'$1')
+          .replace(/\[.*?\]/g,'')
+          .replace(/\(.*?\)/g,'')
+          .replace(
+            /[\u{1F300}-\u{1F9FF}]|[\u{1F600}-\u{1F64F}]|[\u{1F680}-\u{1F6FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|[\u{1F900}-\u{1F9FF}]|[\u{1F1E0}-\u{1F1FF}]|[\u{1F191}-\u{1F251}]|[\u{1F004}]|[\u{1F0CF}]|[\u{1F170}-\u{1F171}]|[\u{1F17E}-\u{1F17F}]|[\u{1F18E}]|[\u{3030}]|[\u{2B50}]|[\u{2B55}]|[\u{2934}-\u{2935}]|[\u{2B05}-\u{2B07}]|[\u{2B1B}-\u{2B1C}]|[\u{3297}]|[\u{3299}]|[\u{303D}]|[\u{00A9}]|[\u{00AE}]|[\u{2122}]|[\u{23F3}]|[\u{24C2}]|[\u{23E9}-\u{23EF}]|[\u{25AA}-\u{25AB}]|[\u{25B6}]|[\u{25C0}]|[\u{25FB}-\u{25FE}]|[\u{2600}-\u{2604}]|[\u{2614}-\u{2615}]|[\u{2648}-\u{2653}]|[\u{0023}-\u{0039}]\u{20E3}/gu,
+            ''
+          ).trim();
+        if(this.speaking){
             this.synth.cancel();
         }
-        const utter = new SpeechSynthesisUtterance(cleaned);
-        utter.rate = 1.0;
-        utter.pitch = 1.0;
-        utter.volume = 1.0;
-        utter.onend = () => {
-            this.speaking = false;
-            if (this.isInCallMode) {
+        const utter=new SpeechSynthesisUtterance(cleaned);
+        utter.rate=1.0;
+        utter.pitch=1.0;
+        utter.volume=1.0;
+        utter.onend=()=>{
+            this.speaking=false;
+            if(this.isInCallMode){
                 this.recognition.start();
             }
         };
-        utter.onerror = (e) => {
-            console.error('TTS error:',e);
-            this.speaking = false;
+        utter.onerror=(err)=>{
+            console.error('TTS error:',err);
+            this.speaking=false;
         };
-        this.speaking = true;
+        this.speaking=true;
         this.synth.speak(utter);
     }
 
-    autoResizeInput() {
+    // =====================
+    //  TEXT CHAT
+    // =====================
+    autoResizeInput(){
         this.chatInput.style.height='auto';
-        if (this.chatInput.scrollHeight<150) {
+        if(this.chatInput.scrollHeight<150){
             this.chatInput.style.height=this.chatInput.scrollHeight+'px';
-        } else {
+        } else{
             this.chatInput.style.height='150px';
         }
     }
-
-    // Stream text for typing effect
-    async streamText(text, element) {
-        let currentText = '';
+    async streamText(text, el){
+        let current='';
         const words=text.split(' ');
-        for(let word of words) {
-            currentText+=word+' ';
-            element.innerHTML=marked.parse(currentText);
+        for(const w of words){
+            current+=w+' ';
+            el.innerHTML=marked.parse(current);
             await new Promise(r=>setTimeout(r,50));
         }
-        return currentText;
+        return current;
+    }
+    displayMessage(role, content, save=true){
+        const msg=document.createElement('div');
+        msg.classList.add('message', role.toLowerCase());
+        let sender='System';
+        if(role==='User')sender='You';
+        else if(role==='Bot')sender='Pickle';
+        msg.setAttribute('data-sender',sender);
+
+        const cd=document.createElement('div');
+        cd.className='message-content';
+        if(role==='Bot'){
+            cd.innerHTML=marked.parse(content);
+        } else {
+            cd.textContent=content;
+        }
+        msg.appendChild(cd);
+        this.chatDisplay.appendChild(msg);
+        this.chatDisplay.scrollTop=this.chatDisplay.scrollHeight;
+
+        if(save){
+            const conv=this.conversations.find(cc=>cc.id===this.currentConversationId);
+            if(conv){
+                conv.messages.push({role, content});
+                this.saveConversations();
+                this.renderConversationsList();
+            }
+        }
     }
 
-    deleteAllChats() {
-        if(confirm('Are you sure you want to delete all chats?')) {
+    async handleSendMessage(){
+        const userMsg=this.chatInput.value.trim();
+        if(!userMsg)return;
+        if(this.isInCallMode)return;
+
+        if(!this.currentConversationId){
+            const c={
+                id:Date.now().toString(),
+                title:'New Chat',
+                messages:[]
+            };
+            this.conversations.unshift(c);
+            this.currentConversationId=c.id;
+            this.saveConversations();
+            this.renderConversationsList();
+        }
+
+        this.chatInput.value='';
+        this.chatInput.style.height='auto';
+        this.displayMessage('User',userMsg,true);
+
+        try{
+            const conversation=this.conversations.find(cc=>cc.id===this.currentConversationId);
+            // how many user messages exist
+            const userCount=conversation.messages.filter(m=>m.role==='User').length;
+
+            // 3rd user message => short summary
+            if(userCount===3){
+                // build entire text conversation
+                const context=conversation.messages.map(m=>{
+                    return {
+                        role:m.role.toLowerCase()==='bot'?'assistant':'user',
+                        content:m.content
+                    };
+                });
+                const titlePrompt=[
+                    {
+                        role:'system',
+                        content:"Produce a 2 - 1 word summary of the entire conversation so far. do not copy any user or assistant line. Return only the short summary, nothing else. and do not use **test** to try make the title bold"
+                    },
+                    ...context
+                ];
+                const titleResp=await fetch('https://api.deepseek.com/chat/completions',{
+                    method:'POST',
+                    headers:{
+                        'Content-Type':'application/json',
+                        'Authorization':'Bearer sk-ef6e72c13b734499a91f5847a258e4e3'
+                    },
+                    body:JSON.stringify({
+                        messages:titlePrompt,
+                        model:"deepseek-chat",
+                        temperature:1.2,       // more creativity
+                        presence_penalty:1.0,  // penalize repeating lines
+                        max_tokens:20
+                    })
+                });
+                const tData=await titleResp.json();
+                let raw=tData.choices[0].message.content.trim();
+                // just in case, keep it within 20 chars
+                let shortTitle=raw.substring(0,20);
+                if(raw.length>20) shortTitle+='...';
+                conversation.title=shortTitle;
+                this.saveConversations();
+                this.renderConversationsList();
+            }
+
+            // normal AI reply with entire conversation so far
+            const fullContext=[
+                { role:'system', content:"You are Pickle, a helpful text assistant. Use the entire conversation so far to provide context." }
+            ];
+            conversation.messages.forEach(m=>{
+                fullContext.push({
+                    role:m.role.toLowerCase()==='bot'?'assistant':'user',
+                    content:m.content
+                });
+            });
+
+            const resp=await fetch('https://api.deepseek.com/chat/completions',{
+                method:'POST',
+                headers:{
+                    'Content-Type':'application/json',
+                    'Authorization':'Bearer sk-ef6e72c13b734499a91f5847a258e4e3'
+                },
+                body:JSON.stringify({
+                    messages:fullContext,
+                    model:"deepseek-chat"
+                })
+            });
+            const data=await resp.json();
+            const botReply=data.choices[0].message.content;
+
+            // "typing"
+            const botMsg=document.createElement('div');
+            botMsg.classList.add('message','bot','typing');
+            botMsg.setAttribute('data-sender','Pickle');
+
+            const cDiv=document.createElement('div');
+            cDiv.className='message-content';
+            botMsg.appendChild(cDiv);
+            this.chatDisplay.appendChild(botMsg);
+
+            await this.streamText(botReply,cDiv);
+            botMsg.classList.remove('typing');
+
+            // save
+            conversation.messages.push({role:'Bot', content:botReply});
+            this.saveConversations();
+            this.renderConversationsList();
+
+        } catch(e){
+            console.error('Send message error:',e);
+            this.displayMessage('Bot','Sorry, something went wrong.',true);
+        }
+    }
+
+    // ================
+    // SIDEBAR + ETC
+    // ================
+    createNewConversation(){
+        const c={
+            id:Date.now().toString(),
+            title:'New Chat',
+            messages:[]
+        };
+        this.conversations.unshift(c);
+        this.saveConversations();
+        this.renderConversationsList();
+        this.loadConversation(c.id);
+    }
+    loadConversation(id){
+        this.currentConversationId=id;
+        this.chatDisplay.innerHTML='';
+        const c=this.conversations.find(cc=>cc.id===id);
+        if(c){
+            c.messages.forEach(m=>{
+                this.displayMessage(m.role,m.content,false);
+            });
+            this.chatDisplay.scrollTop=this.chatDisplay.scrollHeight;
+        }
+        document.querySelectorAll('.conversation-item').forEach(item=>{
+            item.classList.toggle('active', item.dataset.id===id);
+        });
+    }
+    deleteAllChats(){
+        if(confirm('Are you sure you want to delete all chats?')){
             this.conversations=[];
             this.saveConversations();
             this.currentConversationId=null;
@@ -233,8 +429,7 @@ class ChatApp {
             this.showWelcomeMessage();
         }
     }
-
-    showWelcomeMessage() {
+    showWelcomeMessage(){
         this.chatDisplay.innerHTML=`
           <div class="welcome-message">
             <i class="fas fa-comments" style="font-size:48px;"></i>
@@ -242,199 +437,6 @@ class ChatApp {
           </div>
         `;
     }
-
-    initializeApp() {
-        this.renderConversationsList();
-        if(!this.conversations.length) {
-            this.showWelcomeMessage();
-        } else {
-            this.loadConversation(this.conversations[0].id);
-        }
-    }
-
-    createNewConversation() {
-        const convo = {
-            id:Date.now().toString(),
-            title:'New Chat',
-            messages:[]
-        };
-        this.conversations.unshift(convo);
-        this.saveConversations();
-        this.renderConversationsList();
-        this.loadConversation(convo.id);
-    }
-
-    loadConversation(convoId) {
-        this.currentConversationId=convoId;
-        this.chatDisplay.innerHTML='';
-        const c = this.conversations.find(cc=>cc.id===convoId);
-        if(c) {
-            c.messages.forEach(msg=>{
-                this.displayMessage(msg.role,msg.content,false);
-            });
-        }
-        // highlight active
-        document.querySelectorAll('.conversation-item').forEach(item=>{
-            item.classList.toggle('active',item.dataset.id===convoId);
-        });
-        this.chatDisplay.scrollTop=this.chatDisplay.scrollHeight;
-    }
-
-    async handleSendMessage() {
-        const msg=this.chatInput.value.trim();
-        if(!msg) return;
-        if(this.isInCallMode) return;
-
-        if(!this.currentConversationId) {
-            const convo={
-                id:Date.now().toString(),
-                title:'New Chat',
-                messages:[]
-            };
-            this.conversations.unshift(convo);
-            this.currentConversationId=convo.id;
-            this.saveConversations();
-            this.renderConversationsList();
-        }
-
-        this.chatInput.value='';
-        this.chatInput.style.height='auto';
-        this.displayMessage('User', msg, true);
-
-        try{
-            const conversation=this.conversations.find(c=>c.id===this.currentConversationId);
-            // Count how many user messages exist in this conversation
-            const userCount=conversation.messages.filter(m=>m.role==='User').length;
-
-            // If it's the 3rd user message, generate a short title
-            // using the entire conversation as context
-            if(userCount===3) {
-                // Build messages array with entire conversation so far
-                // Convert our conversation messages to the roles used by the API
-                const allContext = conversation.messages.map(m => {
-                    return {
-                        role: m.role.toLowerCase()==='bot' ? 'assistant' : 'user',
-                        content: m.content
-                    };
-                });
-
-                // We'll prepend a system instruction that says:
-                // "Generate a short title for the entire conversation so far..."
-                const titleRequest = [
-                    {
-                        role: "system",
-                        content: "Generate a very short title (4 words or fewer) summarizing the entire conversation so far. Output only the title text, nothing else."
-                    },
-                    // Append all conversation so far for context
-                    ...allContext
-                ];
-
-                const titleResponse = await fetch('https://api.deepseek.com/chat/completions', {
-                    method:'POST',
-                    headers:{
-                        'Content-Type':'application/json',
-                        'Authorization':'Bearer sk-ef6e72c13b734499a91f5847a258e4e3'
-                    },
-                    body:JSON.stringify({
-                        messages:titleRequest,
-                        model:"deepseek-chat"
-                    })
-                });
-                const titleData=await titleResponse.json();
-                let shortTitle=titleData.choices[0].message.content
-                  .replace(/\r?\n|\r/g,' ')
-                  .trim()
-                  .substring(0,20);
-                if(titleData.choices[0].message.content.length>20){
-                    shortTitle+='...';
-                }
-                conversation.title=shortTitle;
-                this.saveConversations();
-                this.renderConversationsList();
-            }
-
-            // Now build the request for the main AI response
-            const fullMessages=[
-                {
-                    role:"system",
-                    content:"You are Pickle, a helpful assistant. Maintain context of the conversation and refer to previous messages if relevant."
-                }
-            ];
-            // Add all messages so far
-            conversation.messages.forEach(m=>{
-                fullMessages.push({
-                    role: m.role.toLowerCase()==='bot' ? 'assistant' : 'user',
-                    content: m.content
-                });
-            });
-
-            const response=await fetch('https://api.deepseek.com/chat/completions',{
-                method:'POST',
-                headers:{
-                    'Content-Type':'application/json',
-                    'Authorization':'Bearer sk-ef6e72c13b734499a91f5847a258e4e3'
-                },
-                body:JSON.stringify({
-                    messages:fullMessages,
-                    model:"deepseek-chat"
-                })
-            });
-            const data=await response.json();
-            const botReply=data.choices[0].message.content;
-
-            // Show bot typing
-            const messageElement=document.createElement('div');
-            messageElement.classList.add('message','bot','typing');
-            messageElement.setAttribute('data-sender','Pickle');
-
-            const contentDiv=document.createElement('div');
-            contentDiv.className='message-content';
-            messageElement.appendChild(contentDiv);
-            this.chatDisplay.appendChild(messageElement);
-
-            await this.streamText(botReply,contentDiv);
-            messageElement.classList.remove('typing');
-
-            // Save final bot message
-            conversation.messages.push({ role:'Bot', content:botReply });
-            this.saveConversations();
-            this.renderConversationsList();
-
-        }catch(err){
-            console.error('Error:',err);
-            this.displayMessage('Bot','Sorry, I encountered an error. Please try again.',true);
-        }
-    }
-
-    displayMessage(role, content, save=true){
-        const messageElement=document.createElement('div');
-        messageElement.classList.add('message',role.toLowerCase());
-        let senderName='System';
-        if(role==='Bot')senderName='Pickle';
-        if(role==='User')senderName='You';
-        messageElement.setAttribute('data-sender', senderName);
-
-        const contentDiv=document.createElement('div');
-        contentDiv.className='message-content';
-        if(role==='Bot'){
-            contentDiv.innerHTML=marked.parse(content);
-        } else {
-            contentDiv.textContent=content;
-        }
-        messageElement.appendChild(contentDiv);
-        this.chatDisplay.appendChild(messageElement);
-        this.chatDisplay.scrollTop=this.chatDisplay.scrollHeight;
-
-        if(save){
-            const conversation=this.conversations.find(c=>c.id===this.currentConversationId);
-            if(conversation){
-                conversation.messages.push({role, content});
-                this.saveConversations();
-                this.renderConversationsList();
-            }
-        }
-    }
-
     renderConversationsList(){
         this.conversationsList.innerHTML='';
         if(!this.conversations.length){
@@ -444,50 +446,51 @@ class ChatApp {
                   <div class="conversation-title">No chats yet</div>
                   <div class="conversation-preview">Click the + button to start</div>
                 </div>
-              </div>`;
+              </div>
+            `;
             return;
         }
-        this.conversations.forEach(convo=>{
-            const conversationElement=document.createElement('div');
-            conversationElement.className='conversation-item';
-            conversationElement.dataset.id=convo.id;
-            if(convo.id===this.currentConversationId){
-                conversationElement.classList.add('active');
+        this.conversations.forEach(conv=>{
+            const item=document.createElement('div');
+            item.className='conversation-item';
+            item.dataset.id=conv.id;
+            if(conv.id===this.currentConversationId){
+                item.classList.add('active');
             }
 
-            const contentDiv=document.createElement('div');
-            contentDiv.className='conversation-content';
-            let lastPreview='New conversation';
-            if(convo.messages.length>0){
-                const last=convo.messages[convo.messages.length-1];
-                lastPreview=(last.role==='Bot'?'Pickle: ':'You: ')+ last.content.substring(0,50) + '...';
-            }
+            const cdiv=document.createElement('div');
+            cdiv.className='conversation-content';
 
-            contentDiv.innerHTML=`
-              <div class="conversation-title">${convo.title}</div>
-              <div class="conversation-preview">${lastPreview}</div>
+            let preview='New conversation';
+            if(conv.messages.length>0){
+                const last=conv.messages[conv.messages.length-1];
+                preview=(last.role==='Bot'?'Pickle: ':'You: ')+ last.content.substring(0,50)+'...';
+            }
+            cdiv.innerHTML=`
+              <div class="conversation-title">${conv.title}</div>
+              <div class="conversation-preview">${preview}</div>
             `;
 
-            const deleteButton=document.createElement('button');
-            deleteButton.className='delete-chat-btn';
-            deleteButton.title='Delete Chat';
-            deleteButton.innerHTML='<i class="fas fa-trash"></i>';
+            const delBtn=document.createElement('button');
+            delBtn.className='delete-chat-btn';
+            delBtn.title='Delete Chat';
+            delBtn.innerHTML='<i class="fas fa-trash"></i>';
 
-            conversationElement.addEventListener('click',(e)=>{
+            item.addEventListener('click',(e)=>{
                 if(!e.target.closest('.delete-chat-btn')){
-                    this.loadConversation(convo.id);
+                    this.loadConversation(conv.id);
                 }
             });
-            deleteButton.onclick=(e)=>{
+            delBtn.onclick=(e)=>{
                 e.preventDefault();
                 e.stopPropagation();
-                if(confirm('Are you sure you want to delete this conversation?')){
-                    this.conversations=this.conversations.filter(c=>c.id!==convo.id);
+                if(confirm('Delete this chat?')){
+                    this.conversations=this.conversations.filter(cc=>cc.id!==conv.id);
                     this.saveConversations();
-                    if(convo.id===this.currentConversationId){
-                        if(this.conversations.length>0){
+                    if(conv.id===this.currentConversationId){
+                        if(this.conversations.length){
                             this.loadConversation(this.conversations[0].id);
-                        }else{
+                        } else{
                             this.showWelcomeMessage();
                             this.currentConversationId=null;
                         }
@@ -495,17 +498,26 @@ class ChatApp {
                     this.renderConversationsList();
                 }
             };
-            conversationElement.appendChild(contentDiv);
-            conversationElement.appendChild(deleteButton);
-            this.conversationsList.appendChild(conversationElement);
+
+            item.appendChild(cdiv);
+            item.appendChild(delBtn);
+            this.conversationsList.appendChild(item);
         });
     }
-
     saveConversations(){
-        localStorage.setItem('conversations',JSON.stringify(this.conversations));
+        localStorage.setItem('conversations', JSON.stringify(this.conversations));
+    }
+    initializeApp(){
+        this.renderConversationsList();
+        if(!this.conversations.length){
+            this.showWelcomeMessage();
+        } else {
+            this.loadConversation(this.conversations[0].id);
+        }
     }
 }
 
-document.addEventListener('DOMContentLoaded',()=>{
+// On DOM loaded
+document.addEventListener('DOMContentLoaded',()=> {
     new ChatApp();
 });
