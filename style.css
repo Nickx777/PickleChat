@@ -5,7 +5,7 @@ body {
   padding: 0;
   font-family: 'Inter', sans-serif;
   background-color: #1a1a1a;
-  color: #ffffff;
+  color: #fff;
   height: 100vh;
   line-height: 1.6;
 }
@@ -24,8 +24,7 @@ body {
   flex-direction: column;
   height: 100vh;
   position: fixed;
-  left: 0;
-  top: 0;
+  left: 0; top: 0;
   overflow-y: auto;
 }
 
@@ -47,7 +46,7 @@ body {
   gap: 40px;
 }
 
-/* Common message styling */
+/* Basic message style */
 .message {
   padding: 16px 20px;
   border-radius: 12px;
@@ -58,12 +57,10 @@ body {
   position: relative;
   box-shadow: 0 1px 2px rgba(0,0,0,0.1);
 }
-
 .message-content {
   white-space: pre-wrap;
   word-wrap: break-word;
 }
-
 .message::before {
   content: attr(data-sender);
   position: absolute;
@@ -73,20 +70,20 @@ body {
   font-weight: 500;
 }
 
-/* User messages */
+/* user messages */
 .user {
   background-color: #2b5278;
-  color: #ffffff;
+  color: #fff;
   margin-left: auto;
 }
 .user::before {
   right: 0;
 }
 
-/* Bot messages: smaller padding & font */
+/* smaller bot messages */
 .bot {
   background-color: #3d3d3d;
-  color: #ffffff;
+  color: #fff;
   margin-right: auto;
   padding: 10px 16px !important;
   font-size: 14px;
@@ -96,7 +93,7 @@ body {
   left: 0;
 }
 
-/* System message (like voice chat ended) */
+/* system message (voice ended, etc.) */
 .system {
   background-color: #3d3d3d;
   margin: 0 auto;
@@ -104,7 +101,32 @@ body {
   text-align: center;
 }
 
-/* Input container */
+/* transcript container hidden by default */
+.transcript-container {
+  margin-top: 8px;
+  padding: 12px 16px;
+  background-color: #2d2d2d;
+  border-radius: 8px;
+  display: none;
+  font-size: 14px;
+  white-space: pre-wrap;
+  line-height: 1.4;
+}
+.transcript-toggle-btn {
+  color: #888;
+  background: none;
+  border: none;
+  cursor: pointer;
+  margin-top: 8px;
+  font-size: 14px;
+  text-decoration: underline;
+  padding: 0;
+}
+.transcript-toggle-btn:hover {
+  color: #aaa;
+}
+
+/* input container */
 #input-container {
   padding: 24px 40px;
   display: flex;
@@ -112,7 +134,6 @@ body {
   gap: 12px;
   background: transparent;
 }
-
 #chat-input {
   width: 300px;
   min-height: 24px;
@@ -120,7 +141,7 @@ body {
   border: none;
   border-radius: 20px;
   background-color: #3d3d3d;
-  color: #ffffff;
+  color: #fff;
   font-size: 15px;
   font-family: 'Inter',sans-serif;
   resize: none;
@@ -139,7 +160,7 @@ body {
   border: none;
   border-radius: 50%;
   background-color: #2b5278;
-  color: white;
+  color: #fff;
   cursor: pointer;
   font-size: 14px;
   transition: all 0.3s;
@@ -156,10 +177,9 @@ body {
   background-color: #ff4444;
   animation: pulse 1.5s infinite;
 }
-
 @keyframes pulse {
-  0% { transform: scale(1); }
-  50% { transform: scale(1.1); }
+  0%   { transform: scale(1); }
+  50%  { transform: scale(1.1); }
   100% { transform: scale(1); }
 }
 
@@ -168,12 +188,12 @@ body {
   border: none;
   border-radius: 20px;
   background-color: #2b5278;
-  color: white;
+  color: #fff;
   cursor: pointer;
   font-size: 14px;
   font-weight: 500;
   transition: background-color 0.3s;
-  font-family: 'Inter', sans-serif;
+  font-family: 'Inter',sans-serif;
   white-space: nowrap;
   height: fit-content;
 }
@@ -195,7 +215,7 @@ body {
 #new-chat-btn, #delete-all-btn {
   border: none;
   border-radius: 20px;
-  color: white;
+  color: #fff;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -218,6 +238,7 @@ body {
   background-color: #ff6666;
 }
 
+/* conversation list */
 #conversations-list {
   flex: 1;
   overflow-y: auto;
@@ -225,8 +246,6 @@ body {
   flex-direction: column;
   gap: 10px;
 }
-
-/* Conversation items */
 .conversation-item {
   padding: 12px;
   background-color: #3d3d3d;
@@ -244,7 +263,6 @@ body {
 .conversation-item.active {
   background-color: #2b5278;
 }
-
 .conversation-content {
   flex: 1;
   margin-right: 10px;
@@ -265,7 +283,6 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-
 .delete-chat-btn {
   background: none;
   border: none;
@@ -299,7 +316,7 @@ body {
   opacity: 0.5;
 }
 
-/* Phone simulator (call UI) */
+/* phone call mode overlay */
 .phone-simulator {
   display: none;
   position: absolute;
@@ -328,7 +345,7 @@ body {
 }
 .end-call-btn {
   background: #ff4444;
-  color: white;
+  color: #fff;
   border: none;
   border-radius: 50%;
   width: 60px;
